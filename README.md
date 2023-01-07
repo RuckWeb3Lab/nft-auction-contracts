@@ -1,13 +1,19 @@
-# Sample Hardhat Project
+# NFTAuction
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+## 概要
 
-Try running some of the following tasks:
+NFTをオークション形式で出品することができるコントラクト。
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts
-```
+### サービス手数料
+
+- 入札金額の3%がサービス手数料として徴収します。
+- サービス手数料は、将来変動する可能性があります。
+- サービス手数料は、システムの運用費用として使用します。
+
+## 機能
+
+### Sell
+
+### Bid
+
+### Final withdraw
