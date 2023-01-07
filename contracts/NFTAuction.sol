@@ -43,7 +43,8 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
     IERC20 auctionToken; // RUCK
     IERC20 paymentToken; // USDC
 
-    uint256 serviceFeeRate;
+    uint256 public serviceFeeRate;
+    uint256 private _totalServiceFeeAmount;
 
     mapping(address => bool) public includedTokenList;
     mapping(bytes32 => NftInfo) public listOfNfts;
@@ -210,7 +211,10 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         IERC721(contractAddress).safeTransferFrom(address(this), listOfNfts[nftId].lastBidder, tokenId, "");
 
         // 入札額を出品者に送信
-        SafeERC20.safeTransfer(paymentToken, address(this), listOfNfts[nftId].currentPrice.sub(serviceFeeRate));
+        SafeERC20.safeTransfer(paymentToken, address(this), listOfNfts[nftId].currentPrice);
+
+        // 手数料を加算
+        _totalServiceFeeAmount = _totalServiceFeeAmount.add(listOfNfts[nftId].serviceFeeAmount);
 
         resetNftInfo(nftId);
     }
