@@ -53,11 +53,11 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
     uint256 public serviceFeeRate;
     uint256 private _totalServiceFeeAmount;
 
-    mapping(address => bool) public includedTokenList;
+    mapping(address => bool) public allowedTokenList;
     mapping(bytes32 => NftInfo) public listOfNfts;
 
     modifier onlyIncludedNft(address contractAddress) {
-        require(includedTokenList[contractAddress]);
+        require(allowedTokenList[contractAddress]);
         _;
     }
 
@@ -93,12 +93,12 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         emit UpdateServiceConfig(serviceFeeRate, bidIncreaseRate, bidTimeout, bidTimeOutCondition);
     }
 
-    /// @dev
-    function updateTokenList(address newContractAddress, bool isEnabled) external onlyOwner {
+    /// @dev オークションで利用できるNFTの有効区分を更新
+    function updateAllowrdTokenList(address newContractAddress, bool isEnabled) external onlyOwner {
         require(newContractAddress != address(0));
-        includedTokenList[newContractAddress] = isEnabled;
+        allowedTokenList[newContractAddress] = isEnabled;
 
-        emit UpdateTokenList(newContractAddress, isEnabled);
+        emit UpdateAllownedTokenList(newContractAddress, isEnabled);
     }
 
     /// @dev
