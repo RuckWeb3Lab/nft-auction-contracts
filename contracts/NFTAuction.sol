@@ -15,6 +15,12 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
     using SafeMath for uint256;
 
     event UpdateTokenList(address newContractAddress, bool enable);
+    event UpdateServiceConfig(
+        uint256 newRate,
+        uint256 newBidIncreaseRate,
+        uint256 newBidTimeout,
+        uint256 newBidTimeOutCondition
+    );
     event DepositNft(
         address indexed contractAddress,
         uint256 indexed tokenId,
@@ -36,13 +42,14 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         uint8 isEnabled;
     }
 
-    uint256 public constant BID_TIMEOUT = 2 hours;
-    uint256 public constant BID_INCREASE_RATE = 3;
     uint256 public constant DENOMINATOR = 100;
 
     IERC20 auctionToken; // RUCK
     IERC20 paymentToken; // USDC
 
+    uint256 public bidTimeout;
+    uint256 public bidTimeOutCondition;
+    uint256 public bidIncreaseRate;
     uint256 public serviceFeeRate;
     uint256 private _totalServiceFeeAmount;
 
@@ -59,13 +66,31 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address usdcAddress) {
+    constructor(address usdcAddress)
+    {
         paymentToken = IERC20(usdcAddress);
         serviceFeeRate = 3;
+        bidIncreaseRate = 3;
+        bidTimeout = 2 hours;
+        bidTimeOutCondition = 1 hours;
     }
 
-    function updateServiceFeeRate(uint256 newRate) external onlyOwner {
+    /// @dev
+    function updateServiceConfig(
+        uint256 newRate,
+        uint256 newBidIncreaseRate,
+        uint256 newBidTimeout,
+        uint256 newBidTimeOutCondition
+    )
+        external
+        onlyOwner
+    {
         serviceFeeRate = newRate;
+        bidIncreaseRate = newBidIncreaseRate;
+        bidTimeout = newBidTimeout;
+        bidTimeOutCondition = newBidTimeOutCondition;
+
+        emit UpdateServiceConfig(serviceFeeRate, bidIncreaseRate, bidTimeout, bidTimeOutCondition);
     }
 
     /// @dev
@@ -114,7 +139,7 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
     {
         bytes32 nftId = getNftId(contractAddress, tokenId);
         uint256 nextPrice = listOfNfts[nftId].currentPrice.add(
-            listOfNfts[nftId].currentPrice.mul(BID_INCREASE_RATE).div(DENOMINATOR)
+            listOfNfts[nftId].currentPrice.mul(bidIncreaseRate).div(DENOMINATOR)
         );
 
         // オークションが終了していないか確認
@@ -136,7 +161,11 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         nftInfo.owner = listOfNfts[nftId].owner;
         nftInfo.lastBidder = _msgSender();
         nftInfo.dateOfListed = listOfNfts[nftId].dateOfListed;
-        nftInfo.dateOfEnd = listOfNfts[nftId].dateOfEnd.add(BID_TIMEOUT);
+        if (block.timestamp > listOfNfts[nftId].dateOfEnd.sub(bidTimeOutCondition)) {
+            nftInfo.dateOfEnd = listOfNfts[nftId].dateOfEnd.add(bidTimeout);
+        } else {
+            nftInfo.dateOfEnd = listOfNfts[nftId].dateOfEnd;
+        }
         nftInfo.startPrice = listOfNfts[nftId].startPrice;
         nftInfo.currentPrice = nextPrice;
         nftInfo.serviceFeeAmount = listOfNfts[nftId].serviceFeeAmount.add(serviceFee);
