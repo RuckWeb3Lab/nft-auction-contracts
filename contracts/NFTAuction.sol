@@ -43,8 +43,8 @@ contract NFTAuction is Context, TimelockController, Ownable2Step, ReentrancyGuar
 
     uint256 public constant DENOMINATOR = 100;
 
-    IERC20 auctionToken; // RUCK
-    IERC20 paymentToken; // USDC
+    IERC20 utilityToken;
+    IERC20 paymentToken;
 
     uint256 public bidTimeout;
     uint256 public bidTimeOutCondition;
@@ -66,13 +66,15 @@ contract NFTAuction is Context, TimelockController, Ownable2Step, ReentrancyGuar
     }
 
     constructor(
-        address usdcAddress,
+        address utilityTokenAddress,
+        address paymentTokenAddress,
         address[] memory proposers,
         address[] memory executors
     )
         TimelockController(1 days, proposers, executors, _msgSender())
     {
-        paymentToken = IERC20(usdcAddress);
+        utilityToken = IERC20(utilityTokenAddress);
+        paymentToken = IERC20(paymentTokenAddress);
         serviceFeeRate = 3;
         bidIncreaseRate = 3;
         bidTimeout = 2 hours;
@@ -157,7 +159,7 @@ contract NFTAuction is Context, TimelockController, Ownable2Step, ReentrancyGuar
         SafeERC20.safeTransfer(paymentToken, address(this), bidPrice);
 
         // 一つ前の入札者のデポジットを返却
-        uint256 serviceFee = listOfNfts[nftId].currentPrice.mul(serviceFeeRate).div(DENOMINATOR);
+        uint256 serviceFee = getServiceFee(listOfNfts[nftId].currentPrice);
         SafeERC20.safeTransfer(paymentToken, listOfNfts[nftId].lastBidder, listOfNfts[nftId].currentPrice.sub(serviceFee));
 
         // 入札情報を更新
@@ -271,5 +273,16 @@ contract NFTAuction is Context, TimelockController, Ownable2Step, ReentrancyGuar
     /// @dev
     function getNftId(address contractAddress, uint256 tokenId) internal pure returns(bytes32) {
         return keccak256(abi.encodePacked(contractAddress, tokenId));
+    }
+
+    /// @dev
+    function getServiceFee(uint256 price) internal view returns(uint256) {
+        uint256 serviceFee = 0;
+
+         if (utilityToken.balanceOf(_msgSender()) == 0) {
+            serviceFee = price.mul(serviceFeeRate).div(DENOMINATOR);
+        }
+
+        return serviceFee;
     }
 }
