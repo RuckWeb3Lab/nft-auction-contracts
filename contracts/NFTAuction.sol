@@ -2,34 +2,33 @@
 pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/utils/Context.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable2Step.sol";
+import "@openzeppelin/contracts/governance/TimelockController.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 // import "hardhat/console.sol";
 
-contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
+contract NFTAuction is Context, TimelockController, Ownable2Step, ReentrancyGuard {
     using SafeMath for uint256;
 
-    event UpdateTokenList(address newContractAddress, bool enable);
+    event UpdateAllownedTokenList(address newContractAddress, bool enable);
+
     event UpdateServiceConfig(
-        uint256 newRate,
+        uint256 newServiceFeeRate,
         uint256 newBidIncreaseRate,
         uint256 newBidTimeout,
         uint256 newBidTimeOutCondition
     );
-    event DepositNft(
+
+    event Bid(
+        address indexed bidder,
         address indexed contractAddress,
-        uint256 indexed tokenId,
-        address indexed owner,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 price
+        uint256 tokenId,
+        uint256 bidPrice
     );
-    event WithdrawNft(address indexed contractAddress, uint256 indexed tokenId, address indexed owner);
 
     struct NftInfo {
         address owner;
@@ -53,11 +52,11 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
     uint256 public serviceFeeRate;
     uint256 private _totalServiceFeeAmount;
 
-    mapping(address => bool) public includedTokenList;
+    mapping(address => bool) public allowedTokenList;
     mapping(bytes32 => NftInfo) public listOfNfts;
 
     modifier onlyIncludedNft(address contractAddress) {
-        require(includedTokenList[contractAddress]);
+        require(allowedTokenList[contractAddress]);
         _;
     }
 
@@ -66,7 +65,12 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address usdcAddress)
+    constructor(
+        address usdcAddress,
+        address[] memory proposers,
+        address[] memory executors
+    )
+        TimelockController(1 days, proposers, executors, _msgSender())
     {
         paymentToken = IERC20(usdcAddress);
         serviceFeeRate = 3;
@@ -77,7 +81,7 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
 
     /// @dev
     function updateServiceConfig(
-        uint256 newRate,
+        uint256 newServiceFeeRate,
         uint256 newBidIncreaseRate,
         uint256 newBidTimeout,
         uint256 newBidTimeOutCondition
@@ -85,7 +89,7 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         external
         onlyOwner
     {
-        serviceFeeRate = newRate;
+        serviceFeeRate = newServiceFeeRate;
         bidIncreaseRate = newBidIncreaseRate;
         bidTimeout = newBidTimeout;
         bidTimeOutCondition = newBidTimeOutCondition;
@@ -93,12 +97,12 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         emit UpdateServiceConfig(serviceFeeRate, bidIncreaseRate, bidTimeout, bidTimeOutCondition);
     }
 
-    /// @dev
-    function updateTokenList(address newContractAddress, bool isEnabled) external onlyOwner {
+    /// @dev オークションで利用できるNFTの有効区分を更新
+    function updateAllowrdTokenList(address newContractAddress, bool isEnabled) external onlyOwner {
         require(newContractAddress != address(0));
-        includedTokenList[newContractAddress] = isEnabled;
+        allowedTokenList[newContractAddress] = isEnabled;
 
-        emit UpdateTokenList(newContractAddress, isEnabled);
+        emit UpdateAllownedTokenList(newContractAddress, isEnabled);
     }
 
     /// @dev
@@ -172,6 +176,8 @@ contract NFTAuction is Context, ERC721Holder, Ownable, ReentrancyGuard {
         nftInfo.isEnabled = 1;
 
         listOfNfts[nftId] = nftInfo;
+
+        emit Bid(_msgSender(), contractAddress, tokenId, bidPrice);
     }
 
     /// @dev 出品処理
